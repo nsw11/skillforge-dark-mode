@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Edit3, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { SkillTree, SkillNode } from '@/types/skillTree';
 import { SkillNodeComponent } from '@/components/SkillNodeComponent';
 import { ConnectionLine } from '@/components/ConnectionLine';
@@ -166,6 +167,42 @@ const SkillTreeEditor = () => {
     toast.success('Starting node updated!');
   };
 
+  const handlePositionChange = (nodeId: string, x: number, y: number) => {
+    if (!tree) return;
+    
+    const updatedNodes = tree.nodes.map((node) =>
+      node.id === nodeId ? { ...node, x, y } : node
+    );
+    
+    setTree({ ...tree, nodes: updatedNodes });
+  };
+
+  const handlePositionSave = () => {
+    if (!tree) return;
+    saveTree({ ...tree, updatedAt: new Date().toISOString() });
+  };
+
+  const autoBalanceNodes = () => {
+    if (!tree || tree.nodes.length === 0) return;
+
+    const padding = 200;
+    const columns = Math.ceil(Math.sqrt(tree.nodes.length));
+    const spacing = 250;
+
+    const updatedNodes = tree.nodes.map((node, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      return {
+        ...node,
+        x: padding + col * spacing,
+        y: padding + row * spacing,
+      };
+    });
+
+    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+    toast.success('Nodes balanced!');
+  };
+
   if (!tree) {
     return <div>Loading...</div>;
   }
@@ -191,6 +228,10 @@ const SkillTreeEditor = () => {
                   <Button onClick={() => setIsNodeDialogOpen(true)} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Node
+                  </Button>
+                  <Button onClick={autoBalanceNodes} variant="outline" size="sm">
+                    <Grid3x3 className="h-4 w-4 mr-2" />
+                    Auto-Balance
                   </Button>
                   {connectingFrom ? (
                     <Button onClick={() => setConnectingFrom(null)} variant="outline" size="sm">
@@ -239,42 +280,46 @@ const SkillTreeEditor = () => {
         </div>
       </div>
 
-      <div
-        className="relative w-full h-[calc(100vh-120px)] overflow-hidden"
-        onClick={isEditMode ? handleCanvasClick : undefined}
-      >
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {tree.nodes.map((node) =>
-            node.dependencies.map((depId) => {
-              const depNode = tree.nodes.find((n) => n.id === depId);
-              if (!depNode) return null;
-              return (
-                <ConnectionLine
-                  key={`${depId}-${node.id}`}
-                  from={depNode}
-                  to={node}
-                  isCompleted={depNode.completed && node.completed}
-                />
-              );
-            })
-          )}
-        </svg>
+      <ScrollArea className="h-[calc(100vh-120px)]">
+        <div
+          className="relative min-w-[2000px] min-h-[2000px]"
+          onClick={isEditMode ? handleCanvasClick : undefined}
+          onMouseUp={handlePositionSave}
+        >
+          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            {tree.nodes.map((node) =>
+              node.dependencies.map((depId) => {
+                const depNode = tree.nodes.find((n) => n.id === depId);
+                if (!depNode) return null;
+                return (
+                  <ConnectionLine
+                    key={`${depId}-${node.id}`}
+                    from={depNode}
+                    to={node}
+                    isCompleted={depNode.completed && node.completed}
+                  />
+                );
+              })
+            )}
+          </svg>
 
-        {tree.nodes.map((node) => {
-          const state = getNodeState(node, tree.nodes, tree.startingNodeId);
-          return (
-            <SkillNodeComponent
-              key={node.id}
-              node={node}
-              state={state}
-              isStartingNode={tree.startingNodeId === node.id}
-              onClick={() => handleNodeClick(node.id)}
-              isEditMode={isEditMode}
-              isSelected={selectedNode === node.id}
-            />
-          );
-        })}
-      </div>
+          {tree.nodes.map((node) => {
+            const state = getNodeState(node, tree.nodes, tree.startingNodeId);
+            return (
+              <SkillNodeComponent
+                key={node.id}
+                node={node}
+                state={state}
+                isStartingNode={tree.startingNodeId === node.id}
+                onClick={() => handleNodeClick(node.id)}
+                isEditMode={isEditMode}
+                isSelected={selectedNode === node.id}
+                onPositionChange={handlePositionChange}
+              />
+            );
+          })}
+        </div>
+      </ScrollArea>
 
       <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
         <DialogContent>
