@@ -204,7 +204,18 @@ const SkillTreeEditor = () => {
   };
 
   if (!tree) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Loading skill tree...</h2>
+          <p className="text-muted-foreground">If this persists, the tree may not exist.</p>
+          <Button onClick={() => navigate('/')} className="mt-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Home
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -282,7 +293,7 @@ const SkillTreeEditor = () => {
 
       <ScrollArea className="h-[calc(100vh-120px)]">
         <div
-          className="relative min-w-[2000px] min-h-[2000px]"
+          className="relative min-w-[2000px] min-h-[2000px] bg-background/50"
           onClick={isEditMode ? handleCanvasClick : undefined}
           onMouseUp={handlePositionSave}
         >
