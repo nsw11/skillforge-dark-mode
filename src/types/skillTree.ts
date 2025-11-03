@@ -4,7 +4,8 @@ export interface SkillNode {
   description: string;
   x: number;
   y: number;
-  dependencies: string[]; // IDs of parent nodes
+  dependencies: string[]; // IDs of parent nodes (required)
+  recommendedDependencies?: string[]; // IDs of recommended parent nodes (optional)
   completed: boolean;
 }
 

@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3, Link } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SkillTree, SkillNode } from '@/types/skillTree';
 import { SkillNodeComponent } from '@/components/SkillNodeComponent';
 import { ConnectionLine } from '@/components/ConnectionLine';
@@ -30,6 +36,7 @@ const SkillTreeEditor = () => {
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
   const [nodeTitle, setNodeTitle] = useState('');
   const [nodeDescription, setNodeDescription] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const savedTrees = localStorage.getItem('skillTrees');
@@ -56,7 +63,7 @@ const SkillTreeEditor = () => {
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isEditMode || !tree) return;
+    if (!isEditMode || !tree || isDragging) return;
     
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -78,6 +85,7 @@ const SkillTreeEditor = () => {
       x: 400,
       y: 300,
       dependencies: [],
+      recommendedDependencies: [],
       completed: false,
     };
 
@@ -100,21 +108,22 @@ const SkillTreeEditor = () => {
 
     if (isEditMode) {
       if (connectingFrom) {
-        // Creating a connection
-        if (connectingFrom !== nodeId) {
-          const updatedNodes = tree.nodes.map((node) => {
-            if (node.id === nodeId && !node.dependencies.includes(connectingFrom)) {
-              return { ...node, dependencies: [...node.dependencies, connectingFrom] };
-            }
-            return node;
-          });
-
-          saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-          toast.success('Connection created!');
+        // Don't connect if dragging
+        if (isDragging) {
+          setIsDragging(false);
+          return;
         }
-        setConnectingFrom(null);
+        // Set the selected node as the target for the connection
+        if (connectingFrom !== nodeId) {
+          setSelectedNode(nodeId);
+        } else {
+          toast.error('Cannot connect a node to itself');
+          setConnectingFrom(null);
+        }
       } else {
-        setSelectedNode(nodeId);
+        if (!isDragging) {
+          setSelectedNode(nodeId);
+        }
       }
     } else {
       // Progress mode - toggle completion
@@ -137,6 +146,41 @@ const SkillTreeEditor = () => {
     }
   };
 
+  const createConnection = (isRecommended: boolean) => {
+    if (!tree || !connectingFrom || !selectedNode) return;
+    
+    if (connectingFrom === selectedNode) {
+      toast.error('Cannot connect a node to itself');
+      return;
+    }
+
+    const updatedNodes = tree.nodes.map((node) => {
+      if (node.id === selectedNode) {
+        if (isRecommended) {
+          const recommendedDeps = node.recommendedDependencies || [];
+          if (!recommendedDeps.includes(connectingFrom)) {
+            return { 
+              ...node, 
+              recommendedDependencies: [...recommendedDeps, connectingFrom] 
+            };
+          }
+        } else {
+          if (!node.dependencies.includes(connectingFrom)) {
+            return { 
+              ...node, 
+              dependencies: [...node.dependencies, connectingFrom] 
+            };
+          }
+        }
+      }
+      return node;
+    });
+
+    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+    toast.success(`${isRecommended ? 'Recommended' : 'Required'} dependency added!`);
+    setConnectingFrom(null);
+  };
+
   const deleteNode = () => {
     if (!tree || !selectedNode) return;
 
@@ -144,6 +188,7 @@ const SkillTreeEditor = () => {
     const cleanedNodes = updatedNodes.map((node) => ({
       ...node,
       dependencies: node.dependencies.filter((dep) => dep !== selectedNode),
+      recommendedDependencies: (node.recommendedDependencies || []).filter((dep) => dep !== selectedNode),
     }));
 
     saveTree({
@@ -170,6 +215,8 @@ const SkillTreeEditor = () => {
   const handlePositionChange = (nodeId: string, x: number, y: number) => {
     if (!tree) return;
     
+    setIsDragging(true);
+    
     const updatedNodes = tree.nodes.map((node) =>
       node.id === nodeId ? { ...node, x, y } : node
     );
@@ -180,6 +227,7 @@ const SkillTreeEditor = () => {
   const handlePositionSave = () => {
     if (!tree) return;
     saveTree({ ...tree, updatedAt: new Date().toISOString() });
+    setTimeout(() => setIsDragging(false), 100);
   };
 
   const autoBalanceNodes = () => {
@@ -245,14 +293,33 @@ const SkillTreeEditor = () => {
                     Auto-Balance
                   </Button>
                   {connectingFrom ? (
-                    <Button onClick={() => setConnectingFrom(null)} variant="outline" size="sm">
-                      Cancel Connection
-                    </Button>
+                    <>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm">
+                            <Link className="h-4 w-4 mr-2" />
+                            Add Dependency
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => createConnection(false)}>
+                            Required (solid arrow)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => createConnection(true)}>
+                            Recommended (dotted arrow)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button onClick={() => setConnectingFrom(null)} variant="outline" size="sm">
+                        Cancel
+                      </Button>
+                    </>
                   ) : (
                     selectedNode && (
                       <>
                         <Button onClick={() => setConnectingFrom(selectedNode)} size="sm">
-                          Connect
+                          <Link className="h-4 w-4 mr-2" />
+                          Make Child Of...
                         </Button>
                         <Button onClick={setAsStartingNode} variant="outline" size="sm">
                           Set as Start
@@ -298,20 +365,38 @@ const SkillTreeEditor = () => {
           onMouseUp={handlePositionSave}
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            {tree.nodes.map((node) =>
-              node.dependencies.map((depId) => {
-                const depNode = tree.nodes.find((n) => n.id === depId);
-                if (!depNode) return null;
-                return (
-                  <ConnectionLine
-                    key={`${depId}-${node.id}`}
-                    from={depNode}
-                    to={node}
-                    isCompleted={depNode.completed && node.completed}
-                  />
-                );
-              })
-            )}
+            {tree.nodes.map((node) => (
+              <>
+                {/* Required dependencies */}
+                {node.dependencies.map((depId) => {
+                  const depNode = tree.nodes.find((n) => n.id === depId);
+                  if (!depNode) return null;
+                  return (
+                    <ConnectionLine
+                      key={`req-${depId}-${node.id}`}
+                      from={depNode}
+                      to={node}
+                      isCompleted={depNode.completed && node.completed}
+                      isRecommended={false}
+                    />
+                  );
+                })}
+                {/* Recommended dependencies */}
+                {(node.recommendedDependencies || []).map((depId) => {
+                  const depNode = tree.nodes.find((n) => n.id === depId);
+                  if (!depNode) return null;
+                  return (
+                    <ConnectionLine
+                      key={`rec-${depId}-${node.id}`}
+                      from={depNode}
+                      to={node}
+                      isCompleted={depNode.completed && node.completed}
+                      isRecommended={true}
+                    />
+                  );
+                })}
+              </>
+            ))}
           </svg>
 
           {tree.nodes.map((node) => {
