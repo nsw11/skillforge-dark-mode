@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3, Link } from 'lucide-react';
+import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
@@ -33,6 +33,8 @@ const SkillTreeEditor = () => {
   const [isEditMode, setIsEditMode] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [connectingTo, setConnectingTo] = useState<string | null>(null);
+  const [connectionDragPos, setConnectionDragPos] = useState<{ x: number; y: number } | null>(null);
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [nodeTitle, setNodeTitle] = useState('');
@@ -140,10 +142,11 @@ const SkillTreeEditor = () => {
     if (isEditMode) {
       if (connectingFrom) {
         if (connectingFrom !== nodeId) {
-          setSelectedNode(nodeId);
+          setConnectingTo(nodeId);
         } else {
           toast.error('Cannot connect a node to itself');
           setConnectingFrom(null);
+          setConnectionDragPos(null);
         }
       } else {
         setSelectedNode(nodeId);
@@ -170,15 +173,15 @@ const SkillTreeEditor = () => {
   };
 
   const createConnection = (isRecommended: boolean) => {
-    if (!tree || !connectingFrom || !selectedNode) return;
+    if (!tree || !connectingFrom || !connectingTo) return;
     
-    if (connectingFrom === selectedNode) {
+    if (connectingFrom === connectingTo) {
       toast.error('Cannot connect a node to itself');
       return;
     }
 
     const updatedNodes = tree.nodes.map((node) => {
-      if (node.id === selectedNode) {
+      if (node.id === connectingTo) {
         if (isRecommended) {
           const recommendedDeps = node.recommendedDependencies || [];
           if (!recommendedDeps.includes(connectingFrom)) {
@@ -202,6 +205,8 @@ const SkillTreeEditor = () => {
     saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
     toast.success(`${isRecommended ? 'Recommended' : 'Required'} dependency added!`);
     setConnectingFrom(null);
+    setConnectingTo(null);
+    setConnectionDragPos(null);
   };
 
   const deleteNode = () => {
@@ -248,6 +253,15 @@ const SkillTreeEditor = () => {
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!tree) return;
     
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Update connection drag position
+    if (connectingFrom) {
+      setConnectionDragPos({ x, y });
+    }
+    
     // Find if any node is being dragged
     const draggingNode = tree.nodes.find(node => {
       const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
@@ -256,9 +270,6 @@ const SkillTreeEditor = () => {
     
     if (draggingNode) {
       setIsDragging(true);
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       
       const nodeElement = document.querySelector(`[data-node-id="${draggingNode.id}"]`);
       const dragOffsetX = parseFloat(nodeElement?.getAttribute('data-drag-offset-x') || '0');
@@ -269,9 +280,23 @@ const SkillTreeEditor = () => {
   };
 
   const handleCanvasMouseUp = () => {
-    if (!tree || !isDragging) return;
-    saveTree({ ...tree, updatedAt: new Date().toISOString() });
-    setTimeout(() => setIsDragging(false), 100);
+    if (!tree) return;
+    
+    if (isDragging) {
+      saveTree({ ...tree, updatedAt: new Date().toISOString() });
+      setTimeout(() => setIsDragging(false), 100);
+    }
+    
+    // Cancel connection drag if clicked on canvas
+    if (connectingFrom && !connectingTo) {
+      setConnectingFrom(null);
+      setConnectionDragPos(null);
+    }
+  };
+
+  const handleConnectionDragStart = (nodeId: string) => {
+    setConnectingFrom(nodeId);
+    setConnectingTo(null);
   };
 
   const autoBalanceNodes = () => {
@@ -336,47 +361,19 @@ const SkillTreeEditor = () => {
                     <Grid3x3 className="h-4 w-4 mr-2" />
                     Auto-Balance
                   </Button>
-                  {connectingFrom ? (
+                  {selectedNode && (
                     <>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm">
-                            <Link className="h-4 w-4 mr-2" />
-                            Add Dependency
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => createConnection(false)}>
-                            Required (solid arrow)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => createConnection(true)}>
-                            Recommended (dotted arrow)
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button onClick={() => setConnectingFrom(null)} variant="outline" size="sm">
-                        Cancel
+                      <Button onClick={openEditDialog} variant="outline" size="sm">
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button onClick={setAsStartingNode} variant="outline" size="sm">
+                        Set as Start
+                      </Button>
+                      <Button onClick={deleteNode} variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </>
-                  ) : (
-                    selectedNode && (
-                      <>
-                        <Button onClick={openEditDialog} variant="outline" size="sm">
-                          <Edit3 className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button onClick={() => setConnectingFrom(selectedNode)} size="sm">
-                          <Link className="h-4 w-4 mr-2" />
-                          Make Child Of...
-                        </Button>
-                        <Button onClick={setAsStartingNode} variant="outline" size="sm">
-                          Set as Start
-                        </Button>
-                        <Button onClick={deleteNode} variant="destructive" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )
                   )}
                 </>
               )}
@@ -385,6 +382,8 @@ const SkillTreeEditor = () => {
                   setIsEditMode(!isEditMode);
                   setSelectedNode(null);
                   setConnectingFrom(null);
+                  setConnectingTo(null);
+                  setConnectionDragPos(null);
                 }}
                 variant={isEditMode ? 'default' : 'outline'}
                 size="sm"
@@ -416,6 +415,19 @@ const SkillTreeEditor = () => {
             onMouseLeave={handleCanvasMouseUp}
           >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            <defs>
+              <marker
+                id="arrowhead"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3, 0 6" fill="currentColor" />
+              </marker>
+            </defs>
+            
             {tree.nodes.map((node) => (
               <>
                 {/* Required dependencies */}
@@ -448,6 +460,25 @@ const SkillTreeEditor = () => {
                 })}
               </>
             ))}
+            
+            {/* Connection drag line */}
+            {connectingFrom && connectionDragPos && (() => {
+              const fromNode = tree.nodes.find((n) => n.id === connectingFrom);
+              if (!fromNode) return null;
+              return (
+                <line
+                  x1={fromNode.x}
+                  y1={fromNode.y}
+                  x2={connectionDragPos.x}
+                  y2={connectionDragPos.y}
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  markerEnd="url(#arrowhead)"
+                  className="text-primary"
+                />
+              );
+            })()}
           </svg>
 
           {tree.nodes.map((node) => {
@@ -464,14 +495,41 @@ const SkillTreeEditor = () => {
                 onPositionChange={handlePositionChange}
                 onDragStart={() => {}}
                 onDragEnd={() => {}}
+                onConnectionDragStart={handleConnectionDragStart}
               />
             );
           })}
           </div>
         </ScrollArea>
 
+        {/* Connection Type Dropdown */}
+        {connectingTo && connectingFrom && (
+          <DropdownMenu open={true} onOpenChange={(open) => {
+            if (!open) {
+              setConnectingFrom(null);
+              setConnectingTo(null);
+              setConnectionDragPos(null);
+            }
+          }}>
+            <DropdownMenuTrigger asChild>
+              <div className="absolute" style={{ 
+                left: connectionDragPos?.x || 0, 
+                top: connectionDragPos?.y || 0 
+              }} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => createConnection(false)}>
+                Required (solid arrow)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => createConnection(true)}>
+                Recommended (dotted arrow)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {/* Side Panel for Selected Node */}
-        {selectedNode && tree && (
+        {selectedNode && tree && !connectingFrom && (
           <div className="w-80 border-l border-border bg-card p-6 overflow-y-auto">
             <div className="space-y-4">
               <div>

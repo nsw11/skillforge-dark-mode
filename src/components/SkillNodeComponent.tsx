@@ -1,6 +1,6 @@
 import { SkillNode, NodeState } from '@/types/skillTree';
 import { cn } from '@/lib/utils';
-import { Check, Lock } from 'lucide-react';
+import { Check, Lock, Link2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface SkillNodeComponentProps {
@@ -13,6 +13,7 @@ interface SkillNodeComponentProps {
   isSelected?: boolean;
   onDragStart?: (id: string, offsetX: number, offsetY: number) => void;
   onDragEnd?: () => void;
+  onConnectionDragStart?: (nodeId: string) => void;
 }
 
 export const SkillNodeComponent = ({
@@ -25,6 +26,7 @@ export const SkillNodeComponent = ({
   isSelected,
   onDragStart,
   onDragEnd,
+  onConnectionDragStart,
 }: SkillNodeComponentProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -55,6 +57,12 @@ export const SkillNodeComponent = ({
     if (!isDragging) {
       onClick();
     }
+  };
+
+  const handleConnectionHandleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isEditMode || !onConnectionDragStart) return;
+    onConnectionDragStart(node.id);
   };
 
   const getNodeClasses = () => {
@@ -115,6 +123,17 @@ export const SkillNodeComponent = ({
       {isStartingNode && (
         <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-xs font-bold">
           S
+        </div>
+      )}
+      
+      {/* Connection Handle */}
+      {isEditMode && (
+        <div
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-primary rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-lg z-10"
+          onMouseDown={handleConnectionHandleMouseDown}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Link2 className="h-3 w-3 text-primary-foreground" />
         </div>
       )}
       
