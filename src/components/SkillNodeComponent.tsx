@@ -11,6 +11,8 @@ interface SkillNodeComponentProps {
   isEditMode: boolean;
   onPositionChange?: (id: string, x: number, y: number) => void;
   isSelected?: boolean;
+  onDragStart?: (id: string, offsetX: number, offsetY: number) => void;
+  onDragEnd?: () => void;
 }
 
 export const SkillNodeComponent = ({
@@ -21,39 +23,30 @@ export const SkillNodeComponent = ({
   isEditMode,
   onPositionChange,
   isSelected,
+  onDragStart,
+  onDragEnd,
 }: SkillNodeComponentProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isEditMode || !onPositionChange) return;
+    if (!isEditMode || !onPositionChange || !onDragStart) return;
     
     e.stopPropagation();
     setIsDragging(true);
     
     const rect = e.currentTarget.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left - rect.width / 2,
-      y: e.clientY - rect.top - rect.height / 2,
-    });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !onPositionChange) return;
+    const offsetX = e.clientX - rect.left - rect.width / 2;
+    const offsetY = e.clientY - rect.top - rect.height / 2;
     
-    const container = e.currentTarget.parentElement;
-    if (!container) return;
-    
-    const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left - dragOffset.x;
-    const y = e.clientY - rect.top - dragOffset.y;
-    
-    onPositionChange(node.id, Math.max(0, x), Math.max(0, y));
+    setDragOffset({ x: offsetX, y: offsetY });
+    onDragStart(node.id, offsetX, offsetY);
   };
 
   const handleMouseUp = () => {
-    if (isDragging) {
+    if (isDragging && onDragEnd) {
       setIsDragging(false);
+      onDragEnd();
     }
   };
 
@@ -111,10 +104,12 @@ export const SkillNodeComponent = ({
         transform: 'translate(-50%, -50%)',
         userSelect: 'none',
       }}
+      data-node-id={node.id}
+      data-dragging={isDragging}
+      data-drag-offset-x={dragOffset.x}
+      data-drag-offset-y={dragOffset.y}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
       onClick={handleClick}
     >
       {isStartingNode && (

@@ -108,12 +108,6 @@ const SkillTreeEditor = () => {
 
     if (isEditMode) {
       if (connectingFrom) {
-        // Don't connect if dragging
-        if (isDragging) {
-          setIsDragging(false);
-          return;
-        }
-        // Set the selected node as the target for the connection
         if (connectingFrom !== nodeId) {
           setSelectedNode(nodeId);
         } else {
@@ -121,9 +115,7 @@ const SkillTreeEditor = () => {
           setConnectingFrom(null);
         }
       } else {
-        if (!isDragging) {
-          setSelectedNode(nodeId);
-        }
+        setSelectedNode(nodeId);
       }
     } else {
       // Progress mode - toggle completion
@@ -215,8 +207,6 @@ const SkillTreeEditor = () => {
   const handlePositionChange = (nodeId: string, x: number, y: number) => {
     if (!tree) return;
     
-    setIsDragging(true);
-    
     const updatedNodes = tree.nodes.map((node) =>
       node.id === nodeId ? { ...node, x, y } : node
     );
@@ -224,8 +214,31 @@ const SkillTreeEditor = () => {
     setTree({ ...tree, nodes: updatedNodes });
   };
 
-  const handlePositionSave = () => {
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!tree) return;
+    
+    // Find if any node is being dragged
+    const draggingNode = tree.nodes.find(node => {
+      const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
+      return nodeElement?.getAttribute('data-dragging') === 'true';
+    });
+    
+    if (draggingNode) {
+      setIsDragging(true);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const nodeElement = document.querySelector(`[data-node-id="${draggingNode.id}"]`);
+      const dragOffsetX = parseFloat(nodeElement?.getAttribute('data-drag-offset-x') || '0');
+      const dragOffsetY = parseFloat(nodeElement?.getAttribute('data-drag-offset-y') || '0');
+      
+      handlePositionChange(draggingNode.id, Math.max(0, x - dragOffsetX), Math.max(0, y - dragOffsetY));
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (!tree || !isDragging) return;
     saveTree({ ...tree, updatedAt: new Date().toISOString() });
     setTimeout(() => setIsDragging(false), 100);
   };
@@ -362,7 +375,9 @@ const SkillTreeEditor = () => {
         <div
           className="relative min-w-[2000px] min-h-[2000px] bg-background/50"
           onClick={isEditMode ? handleCanvasClick : undefined}
-          onMouseUp={handlePositionSave}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp}
         >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
             {tree.nodes.map((node) => (
@@ -411,6 +426,8 @@ const SkillTreeEditor = () => {
                 isEditMode={isEditMode}
                 isSelected={selectedNode === node.id}
                 onPositionChange={handlePositionChange}
+                onDragStart={() => {}}
+                onDragEnd={() => {}}
               />
             );
           })}
