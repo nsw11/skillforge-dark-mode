@@ -10,9 +10,9 @@ export const getNodeState = (
   // If this is the starting node, it's always available
   if (startingNodeId && node.id === startingNodeId) return 'available';
 
-  // If no dependencies, check if it's the starting node or if there's no starting node yet
+  // If no dependencies, it's always available
   if (node.dependencies.length === 0) {
-    return startingNodeId ? 'locked' : 'available';
+    return 'available';
   }
 
   // Check if all dependencies are completed
