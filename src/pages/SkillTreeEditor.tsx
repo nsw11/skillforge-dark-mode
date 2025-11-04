@@ -34,6 +34,7 @@ const SkillTreeEditor = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [nodeTitle, setNodeTitle] = useState('');
   const [nodeDescription, setNodeDescription] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -101,6 +102,36 @@ const SkillTreeEditor = () => {
     setNodeTitle('');
     setNodeDescription('');
     toast.success('Node created!');
+  };
+
+  const openEditDialog = () => {
+    if (!tree || !selectedNode) return;
+    
+    const node = tree.nodes.find((n) => n.id === selectedNode);
+    if (node) {
+      setNodeTitle(node.title);
+      setNodeDescription(node.description || '');
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const updateNode = () => {
+    if (!tree || !selectedNode || !nodeTitle.trim()) {
+      toast.error('Please enter a node title');
+      return;
+    }
+
+    const updatedNodes = tree.nodes.map((node) =>
+      node.id === selectedNode
+        ? { ...node, title: nodeTitle, description: nodeDescription }
+        : node
+    );
+
+    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+    setIsEditDialogOpen(false);
+    setNodeTitle('');
+    setNodeDescription('');
+    toast.success('Node updated!');
   };
 
   const handleNodeClick = (nodeId: string) => {
@@ -330,6 +361,10 @@ const SkillTreeEditor = () => {
                   ) : (
                     selectedNode && (
                       <>
+                        <Button onClick={openEditDialog} variant="outline" size="sm">
+                          <Edit3 className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
                         <Button onClick={() => setConnectingFrom(selectedNode)} size="sm">
                           <Link className="h-4 w-4 mr-2" />
                           Make Child Of...
@@ -371,14 +406,15 @@ const SkillTreeEditor = () => {
         </div>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-120px)]">
-        <div
-          className="relative min-w-[2000px] min-h-[2000px] bg-background/50"
-          onClick={isEditMode ? handleCanvasClick : undefined}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={handleCanvasMouseUp}
-        >
+      <div className="flex h-[calc(100vh-120px)]">
+        <ScrollArea className="flex-1">
+          <div
+            className="relative min-w-[2000px] min-h-[2000px] bg-background/50"
+            onClick={isEditMode ? handleCanvasClick : undefined}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
+          >
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
             {tree.nodes.map((node) => (
               <>
@@ -431,8 +467,93 @@ const SkillTreeEditor = () => {
               />
             );
           })}
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
+
+        {/* Side Panel for Selected Node */}
+        {selectedNode && tree && (
+          <div className="w-80 border-l border-border bg-card p-6 overflow-y-auto">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  {tree.nodes.find((n) => n.id === selectedNode)?.title}
+                </h3>
+                {tree.startingNodeId === selectedNode && (
+                  <span className="inline-block px-2 py-1 text-xs font-semibold bg-primary/20 text-primary rounded mb-2">
+                    Starting Node
+                  </span>
+                )}
+              </div>
+
+              {tree.nodes.find((n) => n.id === selectedNode)?.description && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
+                  <p className="text-sm">
+                    {tree.nodes.find((n) => n.id === selectedNode)?.description}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Dependencies</h4>
+                {(() => {
+                  const node = tree.nodes.find((n) => n.id === selectedNode);
+                  const requiredDeps = node?.dependencies || [];
+                  const recommendedDeps = node?.recommendedDependencies || [];
+                  
+                  if (requiredDeps.length === 0 && recommendedDeps.length === 0) {
+                    return <p className="text-sm text-muted-foreground">No dependencies</p>;
+                  }
+                  
+                  return (
+                    <div className="space-y-2">
+                      {requiredDeps.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium mb-1">Required:</p>
+                          <ul className="space-y-1">
+                            {requiredDeps.map((depId) => {
+                              const depNode = tree.nodes.find((n) => n.id === depId);
+                              return depNode ? (
+                                <li key={depId} className="text-sm pl-2 border-l-2 border-primary">
+                                  {depNode.title}
+                                </li>
+                              ) : null;
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                      {recommendedDeps.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium mb-1">Recommended:</p>
+                          <ul className="space-y-1">
+                            {recommendedDeps.map((depId) => {
+                              const depNode = tree.nodes.find((n) => n.id === depId);
+                              return depNode ? (
+                                <li key={depId} className="text-sm pl-2 border-l-2 border-dashed border-muted-foreground">
+                                  {depNode.title}
+                                </li>
+                              ) : null;
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Status</h4>
+                <p className="text-sm">
+                  {tree.nodes.find((n) => n.id === selectedNode)?.completed
+                    ? 'Completed ✓'
+                    : 'Not completed'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
         <DialogContent>
@@ -457,6 +578,7 @@ const SkillTreeEditor = () => {
                 placeholder="What does this skill involve?"
                 value={nodeDescription}
                 onChange={(e) => setNodeDescription(e.target.value)}
+                rows={4}
               />
             </div>
           </div>
@@ -465,6 +587,42 @@ const SkillTreeEditor = () => {
               Cancel
             </Button>
             <Button onClick={createNode}>Create Node</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Node</DialogTitle>
+            <DialogDescription>Update the node details</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                placeholder="e.g., React Basics"
+                value={nodeTitle}
+                onChange={(e) => setNodeTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="What does this skill involve?"
+                value={nodeDescription}
+                onChange={(e) => setNodeDescription(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateNode}>Update Node</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
