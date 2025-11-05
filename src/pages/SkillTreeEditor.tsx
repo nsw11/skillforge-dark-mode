@@ -66,13 +66,9 @@ const SkillTreeEditor = () => {
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only used to deselect nodes, not create them
     if (!isEditMode || !tree || isDragging) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    setIsNodeDialogOpen(true);
+    setSelectedNode(null);
   };
 
   const createNode = () => {
@@ -141,13 +137,8 @@ const SkillTreeEditor = () => {
 
     if (isEditMode) {
       if (connectingFrom) {
-        if (connectingFrom !== nodeId) {
-          setConnectingTo(nodeId);
-        } else {
-          toast.error('Cannot connect a node to itself');
-          setConnectingFrom(null);
-          setConnectionDragPos(null);
-        }
+        // Don't handle here, let handleNodeMouseUp handle it
+        return;
       } else {
         setSelectedNode(nodeId);
       }
@@ -169,6 +160,15 @@ const SkillTreeEditor = () => {
         saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
         toast.success('Node marked incomplete');
       }
+    }
+  };
+
+  const handleNodeMouseUp = (nodeId: string) => {
+    if (!tree || !isEditMode) return;
+    
+    // Handle connection completion
+    if (connectingFrom && connectingFrom !== nodeId) {
+      setConnectingTo(nodeId);
     }
   };
 
@@ -287,10 +287,14 @@ const SkillTreeEditor = () => {
       setTimeout(() => setIsDragging(false), 100);
     }
     
-    // Cancel connection drag if clicked on canvas
+    // Cancel connection drag if released on canvas (delay to allow node mouseup to fire first)
     if (connectingFrom && !connectingTo) {
-      setConnectingFrom(null);
-      setConnectionDragPos(null);
+      setTimeout(() => {
+        if (connectingFrom && !connectingTo) {
+          setConnectingFrom(null);
+          setConnectionDragPos(null);
+        }
+      }, 50);
     }
   };
 
@@ -490,6 +494,7 @@ const SkillTreeEditor = () => {
                 state={state}
                 isStartingNode={tree.startingNodeId === node.id}
                 onClick={() => handleNodeClick(node.id)}
+                onMouseUp={() => handleNodeMouseUp(node.id)}
                 isEditMode={isEditMode}
                 isSelected={selectedNode === node.id}
                 onPositionChange={handlePositionChange}
