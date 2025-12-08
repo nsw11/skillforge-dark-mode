@@ -1,7 +1,6 @@
 import { SkillNode, NodeState } from '@/types/skillTree';
 import { cn } from '@/lib/utils';
 import { Check, Lock, Link2 } from 'lucide-react';
-import { useState } from 'react';
 
 interface SkillNodeComponentProps {
   node: SkillNode;
@@ -16,6 +15,7 @@ interface SkillNodeComponentProps {
   onDragStart?: (id: string, offsetX: number, offsetY: number) => void;
   onDragEnd?: () => void;
   onConnectionDragStart?: (nodeId: string) => void;
+  isDragging?: boolean;
 }
 
 export const SkillNodeComponent = ({
@@ -31,29 +31,25 @@ export const SkillNodeComponent = ({
   onDragStart,
   onDragEnd,
   onConnectionDragStart,
+  isDragging = false,
 }: SkillNodeComponentProps) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isEditMode || !onPositionChange || !onDragStart) return;
     
     e.stopPropagation();
     e.preventDefault();
-    setIsDragging(true);
     
     const rect = e.currentTarget.getBoundingClientRect();
     const offsetX = e.clientX - rect.left - rect.width / 2;
     const offsetY = e.clientY - rect.top - rect.height / 2;
     
-    setDragOffset({ x: offsetX, y: offsetY });
     onDragStart(node.id, offsetX, offsetY);
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDragging && onDragEnd) {
-      setIsDragging(false);
+    if (onDragEnd) {
       onDragEnd();
     }
     if (onMouseUp) {
@@ -127,9 +123,6 @@ export const SkillNodeComponent = ({
         userSelect: 'none',
       }}
       data-node-id={node.id}
-      data-dragging={isDragging}
-      data-drag-offset-x={dragOffset.x}
-      data-drag-offset-y={dragOffset.y}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onClick={handleClick}
