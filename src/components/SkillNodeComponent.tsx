@@ -8,6 +8,7 @@ interface SkillNodeComponentProps {
   state: NodeState;
   isStartingNode: boolean;
   onClick: () => void;
+  onDoubleClick?: () => void;
   onMouseUp?: () => void;
   isEditMode: boolean;
   onPositionChange?: (id: string, x: number, y: number) => void;
@@ -22,6 +23,7 @@ export const SkillNodeComponent = ({
   state,
   isStartingNode,
   onClick,
+  onDoubleClick,
   onMouseUp,
   isEditMode,
   onPositionChange,
@@ -37,6 +39,7 @@ export const SkillNodeComponent = ({
     if (!isEditMode || !onPositionChange || !onDragStart) return;
     
     e.stopPropagation();
+    e.preventDefault();
     setIsDragging(true);
     
     const rect = e.currentTarget.getBoundingClientRect();
@@ -60,8 +63,13 @@ export const SkillNodeComponent = ({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isDragging) {
-      onClick();
+    onClick();
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDoubleClick) {
+      onDoubleClick();
     }
   };
 
@@ -125,6 +133,7 @@ export const SkillNodeComponent = ({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       {isStartingNode && (
         <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-xs font-bold">

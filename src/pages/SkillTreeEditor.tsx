@@ -40,6 +40,7 @@ const SkillTreeEditor = () => {
   const [nodeTitle, setNodeTitle] = useState('');
   const [nodeDescription, setNodeDescription] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [newNodePosition, setNewNodePosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const savedTrees = localStorage.getItem('skillTrees');
@@ -71,6 +72,17 @@ const SkillTreeEditor = () => {
     setSelectedNode(null);
   };
 
+  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isEditMode || !tree || isDragging) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setNewNodePosition({ x, y });
+    setIsNodeDialogOpen(true);
+  };
+
   const createNode = () => {
     if (!tree || !nodeTitle.trim()) {
       toast.error('Please enter a node title');
@@ -81,8 +93,8 @@ const SkillTreeEditor = () => {
       id: crypto.randomUUID(),
       title: nodeTitle,
       description: nodeDescription,
-      x: 400,
-      y: 300,
+      x: newNodePosition?.x ?? 400,
+      y: newNodePosition?.y ?? 300,
       dependencies: [],
       recommendedDependencies: [],
       completed: false,
@@ -99,16 +111,21 @@ const SkillTreeEditor = () => {
     setIsNodeDialogOpen(false);
     setNodeTitle('');
     setNodeDescription('');
+    setNewNodePosition(null);
     toast.success('Node created!');
   };
 
-  const openEditDialog = () => {
-    if (!tree || !selectedNode) return;
+  const openEditDialog = (nodeId?: string) => {
+    if (!tree) return;
     
-    const node = tree.nodes.find((n) => n.id === selectedNode);
+    const targetNodeId = nodeId || selectedNode;
+    if (!targetNodeId) return;
+    
+    const node = tree.nodes.find((n) => n.id === targetNodeId);
     if (node) {
       setNodeTitle(node.title);
       setNodeDescription(node.description || '');
+      setSelectedNode(targetNodeId);
       setIsEditDialogOpen(true);
     }
   };
@@ -367,7 +384,7 @@ const SkillTreeEditor = () => {
                   </Button>
                   {selectedNode && (
                     <>
-                      <Button onClick={openEditDialog} variant="outline" size="sm">
+                      <Button onClick={() => openEditDialog()} variant="outline" size="sm">
                         <Edit3 className="h-4 w-4 mr-2" />
                         Edit
                       </Button>
@@ -414,6 +431,7 @@ const SkillTreeEditor = () => {
           <div
             className="relative min-w-[2000px] min-h-[2000px] bg-background/50"
             onClick={isEditMode ? handleCanvasClick : undefined}
+            onDoubleClick={isEditMode ? handleCanvasDoubleClick : undefined}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleCanvasMouseUp}
             onMouseLeave={handleCanvasMouseUp}
@@ -494,6 +512,7 @@ const SkillTreeEditor = () => {
                 state={state}
                 isStartingNode={tree.startingNodeId === node.id}
                 onClick={() => handleNodeClick(node.id)}
+                onDoubleClick={() => openEditDialog(node.id)}
                 onMouseUp={() => handleNodeMouseUp(node.id)}
                 isEditMode={isEditMode}
                 isSelected={selectedNode === node.id}
