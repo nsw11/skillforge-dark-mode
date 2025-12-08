@@ -195,17 +195,6 @@ All colors MUST be HSL.
     100% { background-position: 0 100vh; }
   }
 
-  /* Screen flicker effect */
-  [data-theme="cyberpunk"] #root {
-    animation: crt-flicker 0.15s infinite;
-  }
-
-  @keyframes crt-flicker {
-    0%, 100% { opacity: 1; }
-    92% { opacity: 1; }
-    93% { opacity: 0.9; }
-    94% { opacity: 1; }
-  }
 
   /* Phosphor text glow - like old green/amber terminals */
   [data-theme="cyberpunk"] .text-glow,
