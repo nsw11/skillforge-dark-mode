@@ -166,7 +166,7 @@ All colors MUST be HSL.
         hsla(0, 0%, 0%, 0.3) 1px,
         hsla(0, 0%, 0%, 0.3) 2px
       );
-    /* Static scanlines - no animation */
+    animation: scanline-scroll 10s linear infinite;
   }
 
   /* CRT screen curvature and vignette */
