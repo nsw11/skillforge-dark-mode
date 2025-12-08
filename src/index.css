@@ -169,7 +169,7 @@ All colors MUST be HSL.
     animation: scanline-scroll 10s linear infinite;
   }
 
-  /* CRT screen curvature and vignette */
+  /* CRT screen curvature - subtle vignette */
   [data-theme="cyberpunk"] body::after {
     content: '';
     position: fixed;
@@ -183,11 +183,10 @@ All colors MUST be HSL.
       radial-gradient(
         ellipse at center,
         transparent 0%,
-        transparent 50%,
-        hsla(220, 60%, 2%, 0.4) 80%,
-        hsla(220, 60%, 2%, 0.8) 100%
+        transparent 70%,
+        hsla(220, 60%, 2%, 0.15) 90%,
+        hsla(220, 60%, 2%, 0.3) 100%
       );
-    box-shadow: inset 0 0 150px hsla(0, 0%, 0%, 0.5);
   }
 
   @keyframes scanline-scroll {
