@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit3, Check, Trash2, Grid3x3, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
@@ -130,6 +130,30 @@ const SkillTreeEditor = () => {
       setSelectedNode(targetNodeId);
       setIsEditDialogOpen(true);
     }
+  };
+
+  const removeDependency = (nodeId: string, depId: string, isRecommended: boolean) => {
+    if (!tree) return;
+
+    const updatedNodes = tree.nodes.map((node) => {
+      if (node.id === nodeId) {
+        if (isRecommended) {
+          return {
+            ...node,
+            recommendedDependencies: (node.recommendedDependencies || []).filter(id => id !== depId)
+          };
+        } else {
+          return {
+            ...node,
+            dependencies: node.dependencies.filter(id => id !== depId)
+          };
+        }
+      }
+      return node;
+    });
+
+    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+    toast.success('Dependency removed');
   };
 
   const updateNode = () => {
@@ -681,10 +705,10 @@ const SkillTreeEditor = () => {
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Node</DialogTitle>
-            <DialogDescription>Update the node details</DialogDescription>
+            <DialogDescription>Update the node details and manage dependencies</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -706,6 +730,74 @@ const SkillTreeEditor = () => {
                 rows={4}
               />
             </div>
+            
+            {/* Dependencies Section */}
+            {selectedNode && tree && (() => {
+              const node = tree.nodes.find((n) => n.id === selectedNode);
+              const requiredDeps = node?.dependencies || [];
+              const recommendedDeps = node?.recommendedDependencies || [];
+              
+              if (requiredDeps.length === 0 && recommendedDeps.length === 0) {
+                return (
+                  <div className="space-y-2">
+                    <Label>Dependencies</Label>
+                    <p className="text-sm text-muted-foreground">No dependencies. Drag from a node's link icon to add one.</p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="space-y-3">
+                  <Label>Dependencies</Label>
+                  {requiredDeps.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Required:</p>
+                      <div className="space-y-1">
+                        {requiredDeps.map((depId) => {
+                          const depNode = tree.nodes.find((n) => n.id === depId);
+                          return depNode ? (
+                            <div key={depId} className="flex items-center justify-between px-3 py-2 bg-secondary rounded border-l-2 border-primary">
+                              <span className="text-sm">{depNode.title}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => removeDependency(selectedNode, depId, false)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {recommendedDeps.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Recommended:</p>
+                      <div className="space-y-1">
+                        {recommendedDeps.map((depId) => {
+                          const depNode = tree.nodes.find((n) => n.id === depId);
+                          return depNode ? (
+                            <div key={depId} className="flex items-center justify-between px-3 py-2 bg-secondary rounded border-l-2 border-dashed border-muted-foreground">
+                              <span className="text-sm">{depNode.title}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => removeDependency(selectedNode, depId, true)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
