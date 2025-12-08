@@ -16,6 +16,9 @@ export default {
       fontFamily: {
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],
         body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
+        retro: ['VT323', 'monospace'],
+        pixel: ['Press Start 2P', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",

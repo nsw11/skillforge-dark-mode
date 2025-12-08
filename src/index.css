@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -53,47 +51,56 @@ All colors MUST be HSL.
     /* Fonts */
     --font-display: 'Inter', system-ui, sans-serif;
     --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'Courier New', monospace;
   }
 
-  /* Cyberpunk Theme */
+  /* 80s Cyberpunk Theme */
   [data-theme="cyberpunk"] {
-    --background: 270 50% 5%;
-    --foreground: 180 100% 90%;
+    --background: 260 100% 3%;
+    --foreground: 300 100% 95%;
 
-    --card: 280 40% 10%;
-    --card-foreground: 180 100% 90%;
+    --card: 280 80% 8%;
+    --card-foreground: 300 100% 95%;
 
-    --popover: 270 50% 8%;
-    --popover-foreground: 180 100% 90%;
+    --popover: 260 100% 5%;
+    --popover-foreground: 300 100% 95%;
 
-    --primary: 320 100% 60%;
-    --primary-foreground: 270 50% 5%;
+    --primary: 320 100% 55%;
+    --primary-foreground: 260 100% 3%;
 
-    --secondary: 280 40% 15%;
-    --secondary-foreground: 180 100% 90%;
+    --secondary: 280 60% 12%;
+    --secondary-foreground: 180 100% 80%;
 
-    --muted: 280 30% 15%;
-    --muted-foreground: 180 50% 60%;
+    --muted: 280 40% 12%;
+    --muted-foreground: 180 60% 55%;
 
     --accent: 180 100% 50%;
-    --accent-foreground: 270 50% 5%;
+    --accent-foreground: 260 100% 3%;
 
-    --destructive: 0 100% 50%;
+    --destructive: 0 100% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 320 50% 30%;
-    --input: 280 40% 20%;
-    --ring: 320 100% 60%;
+    --border: 320 80% 35%;
+    --input: 280 60% 15%;
+    --ring: 320 100% 55%;
 
-    /* Skill tree specific colors - cyberpunk */
-    --node-completed: 320 100% 60%;
+    /* Skill tree specific colors - 80s neon */
+    --node-completed: 320 100% 55%;
     --node-available: 180 100% 50%;
-    --node-locked: 280 20% 30%;
-    --node-glow: 320 100% 60%;
+    --node-locked: 280 30% 25%;
+    --node-glow: 320 100% 55%;
 
-    /* Fonts - cyberpunk */
-    --font-display: 'Orbitron', monospace;
-    --font-body: 'Rajdhani', sans-serif;
+    /* Extra 80s colors */
+    --neon-pink: 320 100% 55%;
+    --neon-cyan: 180 100% 50%;
+    --neon-purple: 280 100% 60%;
+    --neon-yellow: 50 100% 50%;
+    --sunset-orange: 25 100% 55%;
+
+    /* Fonts - 80s style */
+    --font-display: 'Orbitron', 'VT323', monospace;
+    --font-body: 'Rajdhani', 'VT323', monospace;
+    --font-mono: 'VT323', 'Press Start 2P', monospace;
   }
 }
 
@@ -111,7 +118,7 @@ All colors MUST be HSL.
     font-family: var(--font-display);
   }
 
-  /* Cyberpunk scanline effect */
+  /* 80s CRT Scanline effect */
   [data-theme="cyberpunk"] body::before {
     content: '';
     position: fixed;
@@ -125,59 +132,256 @@ All colors MUST be HSL.
       0deg,
       transparent,
       transparent 2px,
-      hsla(180, 100%, 50%, 0.03) 2px,
-      hsla(180, 100%, 50%, 0.03) 4px
+      hsla(180, 100%, 50%, 0.02) 2px,
+      hsla(180, 100%, 50%, 0.02) 4px
     );
+    animation: scanline-flicker 0.1s infinite;
   }
 
-  /* Cyberpunk glow effects */
+  /* VHS tracking noise */
+  [data-theme="cyberpunk"] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9998;
+    background: 
+      radial-gradient(ellipse at center, transparent 0%, hsla(280, 100%, 5%, 0.3) 100%);
+  }
+
+  @keyframes scanline-flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.98; }
+  }
+
+  /* Neon text glow effects */
+  [data-theme="cyberpunk"] .text-glow {
+    text-shadow: 
+      0 0 5px hsl(var(--primary)),
+      0 0 10px hsl(var(--primary)),
+      0 0 20px hsl(var(--primary)),
+      0 0 40px hsl(var(--primary) / 0.8),
+      0 0 80px hsl(var(--primary) / 0.6);
+  }
+
+  [data-theme="cyberpunk"] .text-glow-cyan {
+    text-shadow: 
+      0 0 5px hsl(var(--accent)),
+      0 0 10px hsl(var(--accent)),
+      0 0 20px hsl(var(--accent)),
+      0 0 40px hsl(var(--accent) / 0.8);
+  }
+
+  /* Box glow effects */
   [data-theme="cyberpunk"] .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.5),
-                0 0 40px hsl(var(--primary) / 0.3),
-                inset 0 0 20px hsl(var(--primary) / 0.1);
+    box-shadow: 
+      0 0 5px hsl(var(--primary)),
+      0 0 10px hsl(var(--primary) / 0.8),
+      0 0 20px hsl(var(--primary) / 0.6),
+      0 0 40px hsl(var(--primary) / 0.4),
+      inset 0 0 10px hsl(var(--primary) / 0.2);
   }
 
   [data-theme="cyberpunk"] .glow-accent {
-    box-shadow: 0 0 20px hsl(var(--accent) / 0.5),
-                0 0 40px hsl(var(--accent) / 0.3);
+    box-shadow: 
+      0 0 5px hsl(var(--accent)),
+      0 0 10px hsl(var(--accent) / 0.8),
+      0 0 20px hsl(var(--accent) / 0.6),
+      0 0 40px hsl(var(--accent) / 0.4);
   }
 
-  /* Text glow for cyberpunk */
-  [data-theme="cyberpunk"] .text-glow {
-    text-shadow: 0 0 10px hsl(var(--primary)),
-                 0 0 20px hsl(var(--primary) / 0.8),
-                 0 0 30px hsl(var(--primary) / 0.6);
-  }
-
-  [data-theme="cyberpunk"] .text-glow-accent {
-    text-shadow: 0 0 10px hsl(var(--accent)),
-                 0 0 20px hsl(var(--accent) / 0.8);
+  /* Chrome/metallic text effect */
+  [data-theme="cyberpunk"] .chrome-text {
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100%) 0%,
+      hsl(0 0% 80%) 25%,
+      hsl(0 0% 60%) 50%,
+      hsl(0 0% 80%) 75%,
+      hsl(0 0% 100%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 2px hsla(0, 0%, 0%, 0.5));
   }
 }
 
 @layer utilities {
+  /* 80s Neon border with glow */
   .cyber-border {
-    border: 1px solid hsl(var(--border));
+    border: 2px solid hsl(var(--border));
     position: relative;
   }
 
-  [data-theme="cyberpunk"] .cyber-border::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(45deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)));
-    z-index: -1;
-    opacity: 0.5;
-    filter: blur(4px);
+  [data-theme="cyberpunk"] .cyber-border {
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 
+      0 0 10px hsl(var(--primary) / 0.5),
+      inset 0 0 10px hsl(var(--primary) / 0.1);
   }
 
+  [data-theme="cyberpunk"] .cyber-border::before,
+  [data-theme="cyberpunk"] .cyber-border::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 2px solid hsl(var(--accent));
+    box-shadow: 0 0 5px hsl(var(--accent));
+  }
+
+  [data-theme="cyberpunk"] .cyber-border::before {
+    top: -4px;
+    left: -4px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  [data-theme="cyberpunk"] .cyber-border::after {
+    bottom: -4px;
+    right: -4px;
+    border-left: none;
+    border-top: none;
+  }
+
+  /* Retro grid background - 80s sunset style */
   .cyber-grid {
     background-image: 
       linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
       linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
     background-size: 40px 40px;
+  }
+
+  [data-theme="cyberpunk"] .cyber-grid {
+    background: 
+      linear-gradient(180deg, 
+        hsla(280, 100%, 5%, 0) 0%, 
+        hsla(280, 100%, 5%, 0.8) 50%,
+        hsla(280, 100%, 5%, 1) 100%
+      ),
+      linear-gradient(hsla(320, 100%, 55%, 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsla(320, 100%, 55%, 0.3) 1px, transparent 1px),
+      linear-gradient(180deg, 
+        hsla(25, 100%, 55%, 0.1) 0%, 
+        hsla(320, 100%, 55%, 0.1) 50%,
+        hsla(280, 100%, 60%, 0.1) 100%
+      );
+    background-size: 100% 100%, 50px 50px, 50px 50px, 100% 100%;
+    background-position: center, center, center, center;
+  }
+
+  /* Perspective grid floor effect */
+  [data-theme="cyberpunk"] .retro-floor {
+    background: 
+      linear-gradient(180deg, transparent 40%, hsla(320, 100%, 55%, 0.1) 100%),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 49px,
+        hsla(180, 100%, 50%, 0.4) 49px,
+        hsla(180, 100%, 50%, 0.4) 51px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 49px,
+        hsla(180, 100%, 50%, 0.2) 49px,
+        hsla(180, 100%, 50%, 0.2) 51px
+      );
+    background-size: 100% 100%, 50px 50px, 50px 50px;
+    transform-origin: center bottom;
+    transform: perspective(500px) rotateX(30deg);
+  }
+
+  /* VHS glitch effect */
+  [data-theme="cyberpunk"] .vhs-glitch {
+    animation: vhs-glitch 3s infinite;
+  }
+
+  @keyframes vhs-glitch {
+    0%, 95%, 100% {
+      transform: translate(0);
+      filter: none;
+    }
+    96% {
+      transform: translate(-2px, 1px);
+      filter: hue-rotate(90deg);
+    }
+    97% {
+      transform: translate(2px, -1px);
+      filter: hue-rotate(-90deg);
+    }
+    98% {
+      transform: translate(-1px, 2px);
+      filter: saturate(2);
+    }
+    99% {
+      transform: translate(1px, -2px);
+      filter: brightness(1.5);
+    }
+  }
+
+  /* Chromatic aberration effect */
+  [data-theme="cyberpunk"] .chromatic {
+    position: relative;
+  }
+
+  [data-theme="cyberpunk"] .chromatic::before,
+  [data-theme="cyberpunk"] .chromatic::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.8;
+  }
+
+  [data-theme="cyberpunk"] .chromatic::before {
+    color: hsl(180, 100%, 50%);
+    transform: translate(-2px, 0);
+    mix-blend-mode: screen;
+  }
+
+  [data-theme="cyberpunk"] .chromatic::after {
+    color: hsl(320, 100%, 55%);
+    transform: translate(2px, 0);
+    mix-blend-mode: screen;
+  }
+
+  /* Neon button pulse */
+  [data-theme="cyberpunk"] .neon-pulse {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes neon-pulse {
+    0%, 100% {
+      box-shadow: 
+        0 0 5px hsl(var(--primary)),
+        0 0 10px hsl(var(--primary) / 0.8),
+        0 0 20px hsl(var(--primary) / 0.6);
+    }
+    50% {
+      box-shadow: 
+        0 0 10px hsl(var(--primary)),
+        0 0 20px hsl(var(--primary) / 0.8),
+        0 0 40px hsl(var(--primary) / 0.6),
+        0 0 60px hsl(var(--primary) / 0.4);
+    }
+  }
+
+  /* Sunset gradient */
+  [data-theme="cyberpunk"] .sunset-gradient {
+    background: linear-gradient(
+      180deg,
+      hsl(280, 100%, 15%) 0%,
+      hsl(320, 100%, 30%) 30%,
+      hsl(25, 100%, 50%) 60%,
+      hsl(50, 100%, 60%) 100%
+    );
   }
 }
