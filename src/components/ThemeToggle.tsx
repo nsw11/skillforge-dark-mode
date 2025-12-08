@@ -1,5 +1,5 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import { Zap, Tv } from 'lucide-react';
+import { Monitor, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const ThemeToggle = () => {
@@ -9,27 +9,26 @@ export const ThemeToggle = () => {
     <button
       onClick={toggleTheme}
       className={cn(
-        "fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-2",
-        "border-2 transition-all duration-300 text-sm",
+        "fixed bottom-4 right-4 z-50 flex items-center gap-3 px-5 py-3",
+        "transition-all duration-300",
         "hover:scale-105 active:scale-95",
         theme === 'cyberpunk' 
-          ? "bg-background/80 border-primary text-primary font-display uppercase tracking-widest glow-primary neon-pulse" 
-          : "bg-card border-border text-foreground hover:border-primary rounded-full"
+          ? "bg-background border-2 border-accent text-accent font-mono uppercase tracking-[0.3em] text-lg glow-accent neon-breathe pixel-corners" 
+          : "bg-card border border-border text-foreground hover:border-primary rounded-full text-sm"
       )}
-      style={theme === 'cyberpunk' ? {
-        clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)'
-      } : undefined}
     >
       {theme === 'cyberpunk' ? (
-        <Tv className="h-4 w-4 animate-pulse" />
+        <>
+          <Monitor className="h-5 w-5" />
+          <span className="vhs-glitch">SYS:RETRO</span>
+          <span className="cursor-blink"></span>
+        </>
       ) : (
-        <Zap className="h-4 w-4" />
+        <>
+          <Zap className="h-4 w-4" />
+          <span>Default</span>
+        </>
       )}
-      <span className={cn(
-        theme === 'cyberpunk' && "text-glow vhs-glitch"
-      )}>
-        {theme === 'cyberpunk' ? '// RETRO' : 'Default'}
-      </span>
     </button>
   );
 };
