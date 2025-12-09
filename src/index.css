@@ -43,6 +43,8 @@ All colors MUST be HSL.
     --node-available: 174 72% 56%;
     --node-locked: 215 16% 47%;
     --node-glow: 199 89% 48%;
+    --connection-completed: 217 91% 60%;
+    --connection-locked: 215 16% 47%;
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(199 89% 48%) 0%, hsl(217 91% 60%) 100%);
@@ -95,8 +97,12 @@ All colors MUST be HSL.
     /* Skill tree specific colors - terminal phosphor style */
     --node-completed: 320 100% 60%;
     --node-available: 180 100% 50%;
-    --node-locked: 260 30% 20%;
+    --node-locked: 260 40% 35%;
     --node-glow: 180 100% 50%;
+    
+    /* Connection lines - bright neon for visibility */
+    --connection-completed: 180 100% 60%;
+    --connection-locked: 280 60% 50%;
 
     /* Terminal colors */
     --terminal-green: 120 100% 50%;
