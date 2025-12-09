@@ -24,7 +24,7 @@ export const ConnectionLine = ({ from, to, isCompleted, isRecommended = false }:
         >
           <path
             d="M0,0 L0,6 L9,3 z"
-            fill={isCompleted ? 'hsl(var(--node-completed))' : 'hsl(var(--node-locked))'}
+            fill={isCompleted ? 'hsl(var(--connection-completed))' : 'hsl(var(--connection-locked))'}
           />
         </marker>
       </defs>
@@ -33,11 +33,11 @@ export const ConnectionLine = ({ from, to, isCompleted, isRecommended = false }:
         y1={from.y}
         x2={to.x}
         y2={to.y}
-        stroke={isCompleted ? 'hsl(var(--node-completed))' : 'hsl(var(--node-locked))'}
+        stroke={isCompleted ? 'hsl(var(--connection-completed))' : 'hsl(var(--connection-locked))'}
         strokeWidth="2"
         strokeDasharray={isRecommended ? "5,5" : "none"}
         className="transition-all duration-300"
-        opacity={isCompleted ? 0.8 : 0.3}
+        opacity={isCompleted ? 0.9 : 0.6}
         markerEnd={`url(#${markerId})`}
       />
     </g>
