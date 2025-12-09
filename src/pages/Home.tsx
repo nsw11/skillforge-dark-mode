@@ -73,7 +73,7 @@ const Home = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Skill Tree Builder
+              Skill Tree
             </h1>
             <p className="text-muted-foreground mt-2">
               Create and manage your custom skill progression systems
