@@ -14,7 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      skill_nodes: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_completed: boolean
+          recommended_dependencies: string[] | null
+          required_dependencies: string[] | null
+          title: string
+          tree_id: string
+          updated_at: string
+          x: number
+          y: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_completed?: boolean
+          recommended_dependencies?: string[] | null
+          required_dependencies?: string[] | null
+          title: string
+          tree_id: string
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_completed?: boolean
+          recommended_dependencies?: string[] | null
+          required_dependencies?: string[] | null
+          title?: string
+          tree_id?: string
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_nodes_tree_id_fkey"
+            columns: ["tree_id"]
+            isOneToOne: false
+            referencedRelation: "skill_trees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skill_trees: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          starting_node_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          starting_node_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          starting_node_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
