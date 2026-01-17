@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, LogOut } from 'lucide-react';
 import { SkillTree } from '@/types/skillTree';
 import { SkillTreeCard } from '@/components/SkillTreeCard';
 import { useNavigate } from 'react-router-dom';
@@ -16,56 +16,160 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const Home = () => {
   const [trees, setTrees] = useState<SkillTree[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState('');
   const [newTreeDescription, setNewTreeDescription] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
 
   useEffect(() => {
-    const savedTrees = localStorage.getItem('skillTrees');
-    if (savedTrees) {
-      setTrees(JSON.parse(savedTrees));
+    if (!loading && !user) {
+      navigate('/auth');
     }
-  }, []);
+  }, [user, loading, navigate]);
 
-  const saveTrees = (updatedTrees: SkillTree[]) => {
-    localStorage.setItem('skillTrees', JSON.stringify(updatedTrees));
-    setTrees(updatedTrees);
+  useEffect(() => {
+    if (user) {
+      loadTrees();
+    }
+  }, [user]);
+
+  const loadTrees = async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    try {
+      // Load skill trees from Supabase
+      const { data: treesData, error: treesError } = await supabase
+        .from('skill_trees')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (treesError) throw treesError;
+
+      // Load skill nodes for each tree
+      const { data: nodesData, error: nodesError } = await supabase
+        .from('skill_nodes')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (nodesError) throw nodesError;
+
+      // Map trees with their nodes
+      const treesWithNodes: SkillTree[] = (treesData || []).map((tree) => ({
+        id: tree.id,
+        name: tree.name,
+        description: tree.description || '',
+        startingNodeId: tree.starting_node_id,
+        nodes: (nodesData || [])
+          .filter((node) => node.tree_id === tree.id)
+          .map((node) => ({
+            id: node.id,
+            title: node.title,
+            description: node.description || '',
+            x: node.x,
+            y: node.y,
+            dependencies: node.required_dependencies || [],
+            recommendedDependencies: node.recommended_dependencies || [],
+            completed: node.is_completed,
+          })),
+        createdAt: tree.created_at,
+        updatedAt: tree.updated_at,
+      }));
+
+      setTrees(treesWithNodes);
+    } catch (error) {
+      console.error('Error loading trees:', error);
+      toast.error('Failed to load skill trees');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const createNewTree = () => {
+  const createNewTree = async () => {
     if (!newTreeName.trim()) {
       toast.error('Please enter a name for your skill tree');
       return;
     }
 
-    const newTree: SkillTree = {
-      id: crypto.randomUUID(),
-      name: newTreeName,
-      description: newTreeDescription,
-      startingNodeId: null,
-      nodes: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (!user) {
+      toast.error('You must be logged in to create a skill tree');
+      return;
+    }
 
-    const updatedTrees = [...trees, newTree];
-    saveTrees(updatedTrees);
-    setIsDialogOpen(false);
-    setNewTreeName('');
-    setNewTreeDescription('');
-    toast.success('Skill tree created!');
-    navigate(`/tree/${newTree.id}`);
+    try {
+      const { data, error } = await supabase
+        .from('skill_trees')
+        .insert({
+          name: newTreeName,
+          description: newTreeDescription || null,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setIsDialogOpen(false);
+      setNewTreeName('');
+      setNewTreeDescription('');
+      toast.success('Skill tree created!');
+      navigate(`/tree/${data.id}`);
+    } catch (error) {
+      console.error('Error creating tree:', error);
+      toast.error('Failed to create skill tree');
+    }
   };
 
-  const deleteTree = (id: string) => {
-    const updatedTrees = trees.filter((t) => t.id !== id);
-    saveTrees(updatedTrees);
-    toast.success('Skill tree deleted');
+  const deleteTree = async (id: string) => {
+    try {
+      // Delete nodes first
+      const { error: nodesError } = await supabase
+        .from('skill_nodes')
+        .delete()
+        .eq('tree_id', id);
+
+      if (nodesError) throw nodesError;
+
+      // Then delete tree
+      const { error: treeError } = await supabase
+        .from('skill_trees')
+        .delete()
+        .eq('id', id);
+
+      if (treeError) throw treeError;
+
+      setTrees(trees.filter((t) => t.id !== id));
+      toast.success('Skill tree deleted');
+    } catch (error) {
+      console.error('Error deleting tree:', error);
+      toast.error('Failed to delete skill tree');
+    }
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (loading || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,10 +183,16 @@ const Home = () => {
               Create and manage your custom skill progression systems
             </p>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)} size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            New Skill Tree
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button onClick={() => setIsDialogOpen(true)} size="lg">
+              <Plus className="h-5 w-5 mr-2" />
+              New Skill Tree
+            </Button>
+            <Button variant="outline" size="lg" onClick={handleSignOut}>
+              <LogOut className="h-5 w-5 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
 
         {trees.length === 0 ? (

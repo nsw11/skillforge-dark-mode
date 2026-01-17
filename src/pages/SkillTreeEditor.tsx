@@ -25,10 +25,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const SkillTreeEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [tree, setTree] = useState<SkillTree | null>(null);
   const [isEditMode, setIsEditMode] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -43,33 +46,123 @@ const SkillTreeEditor = () => {
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [newNodePosition, setNewNodePosition] = useState<{ x: number; y: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedTrees = localStorage.getItem('skillTrees');
-    if (savedTrees) {
-      const trees: SkillTree[] = JSON.parse(savedTrees);
-      const currentTree = trees.find((t) => t.id === id);
-      if (currentTree) {
-        setTree(currentTree);
-      } else {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user && id) {
+      loadTree();
+    }
+  }, [user, id]);
+
+  const loadTree = async () => {
+    if (!user || !id) return;
+
+    setIsLoading(true);
+    try {
+      // Load tree
+      const { data: treeData, error: treeError } = await supabase
+        .from('skill_trees')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (treeError) throw treeError;
+
+      if (!treeData) {
         toast.error('Skill tree not found');
         navigate('/');
+        return;
       }
-    }
-  }, [id, navigate]);
 
-  const saveTree = (updatedTree: SkillTree) => {
-    const savedTrees = localStorage.getItem('skillTrees');
-    if (savedTrees) {
-      const trees: SkillTree[] = JSON.parse(savedTrees);
-      const updatedTrees = trees.map((t) => (t.id === updatedTree.id ? updatedTree : t));
-      localStorage.setItem('skillTrees', JSON.stringify(updatedTrees));
+      // Load nodes for this tree
+      const { data: nodesData, error: nodesError } = await supabase
+        .from('skill_nodes')
+        .select('*')
+        .eq('tree_id', id)
+        .eq('user_id', user.id);
+
+      if (nodesError) throw nodesError;
+
+      const loadedTree: SkillTree = {
+        id: treeData.id,
+        name: treeData.name,
+        description: treeData.description || '',
+        startingNodeId: treeData.starting_node_id,
+        nodes: (nodesData || []).map((node) => ({
+          id: node.id,
+          title: node.title,
+          description: node.description || '',
+          x: node.x,
+          y: node.y,
+          dependencies: node.required_dependencies || [],
+          recommendedDependencies: node.recommended_dependencies || [],
+          completed: node.is_completed,
+        })),
+        createdAt: treeData.created_at,
+        updatedAt: treeData.updated_at,
+      };
+
+      setTree(loadedTree);
+    } catch (error) {
+      console.error('Error loading tree:', error);
+      toast.error('Failed to load skill tree');
+      navigate('/');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveTree = async (updatedTree: SkillTree) => {
+    if (!user) return;
+
+    try {
+      // Update tree metadata
+      const { error: treeError } = await supabase
+        .from('skill_trees')
+        .update({
+          starting_node_id: updatedTree.startingNodeId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', updatedTree.id)
+        .eq('user_id', user.id);
+
+      if (treeError) throw treeError;
+
+      // Sync nodes - this is a simple approach that updates all nodes
+      for (const node of updatedTree.nodes) {
+        const { error: nodeError } = await supabase
+          .from('skill_nodes')
+          .upsert({
+            id: node.id,
+            tree_id: updatedTree.id,
+            user_id: user.id,
+            title: node.title,
+            description: node.description || null,
+            x: node.x,
+            y: node.y,
+            required_dependencies: node.dependencies,
+            recommended_dependencies: node.recommendedDependencies || [],
+            is_completed: node.completed,
+          });
+
+        if (nodeError) throw nodeError;
+      }
+
       setTree(updatedTree);
+    } catch (error) {
+      console.error('Error saving tree:', error);
+      toast.error('Failed to save changes');
     }
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only used to deselect nodes, not create them
     if (!isEditMode || !tree || isDragging) return;
     setSelectedNode(null);
   };
@@ -85,14 +178,15 @@ const SkillTreeEditor = () => {
     setIsNodeDialogOpen(true);
   };
 
-  const createNode = () => {
-    if (!tree || !nodeTitle.trim()) {
+  const createNode = async () => {
+    if (!tree || !nodeTitle.trim() || !user) {
       toast.error('Please enter a node title');
       return;
     }
 
+    const newNodeId = crypto.randomUUID();
     const newNode: SkillNode = {
-      id: crypto.randomUUID(),
+      id: newNodeId,
       title: nodeTitle,
       description: nodeDescription,
       x: newNodePosition?.x ?? 400,
@@ -102,19 +196,50 @@ const SkillTreeEditor = () => {
       completed: false,
     };
 
-    const updatedTree = {
-      ...tree,
-      nodes: [...tree.nodes, newNode],
-      startingNodeId: tree.startingNodeId || newNode.id,
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      // Insert into database
+      const { error: nodeError } = await supabase
+        .from('skill_nodes')
+        .insert({
+          id: newNodeId,
+          tree_id: tree.id,
+          user_id: user.id,
+          title: nodeTitle,
+          description: nodeDescription || null,
+          x: newNodePosition?.x ?? 400,
+          y: newNodePosition?.y ?? 300,
+          required_dependencies: [],
+          recommended_dependencies: [],
+          is_completed: false,
+        });
 
-    saveTree(updatedTree);
-    setIsNodeDialogOpen(false);
-    setNodeTitle('');
-    setNodeDescription('');
-    setNewNodePosition(null);
-    toast.success('Node created!');
+      if (nodeError) throw nodeError;
+
+      const updatedTree = {
+        ...tree,
+        nodes: [...tree.nodes, newNode],
+        startingNodeId: tree.startingNodeId || newNodeId,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Update starting node if this is the first node
+      if (!tree.startingNodeId) {
+        await supabase
+          .from('skill_trees')
+          .update({ starting_node_id: newNodeId })
+          .eq('id', tree.id);
+      }
+
+      setTree(updatedTree);
+      setIsNodeDialogOpen(false);
+      setNodeTitle('');
+      setNodeDescription('');
+      setNewNodePosition(null);
+      toast.success('Node created!');
+    } catch (error) {
+      console.error('Error creating node:', error);
+      toast.error('Failed to create node');
+    }
   };
 
   const openEditDialog = (nodeId?: string) => {
@@ -132,47 +257,78 @@ const SkillTreeEditor = () => {
     }
   };
 
-  const removeDependency = (nodeId: string, depId: string, isRecommended: boolean) => {
-    if (!tree) return;
+  const removeDependency = async (nodeId: string, depId: string, isRecommended: boolean) => {
+    if (!tree || !user) return;
 
-    const updatedNodes = tree.nodes.map((node) => {
-      if (node.id === nodeId) {
-        if (isRecommended) {
-          return {
-            ...node,
-            recommendedDependencies: (node.recommendedDependencies || []).filter(id => id !== depId)
-          };
-        } else {
-          return {
-            ...node,
-            dependencies: node.dependencies.filter(id => id !== depId)
-          };
+    const node = tree.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    const updatedDeps = isRecommended
+      ? (node.recommendedDependencies || []).filter(id => id !== depId)
+      : node.dependencies.filter(id => id !== depId);
+
+    try {
+      const { error } = await supabase
+        .from('skill_nodes')
+        .update(isRecommended 
+          ? { recommended_dependencies: updatedDeps }
+          : { required_dependencies: updatedDeps }
+        )
+        .eq('id', nodeId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const updatedNodes = tree.nodes.map((n) => {
+        if (n.id === nodeId) {
+          return isRecommended
+            ? { ...n, recommendedDependencies: updatedDeps }
+            : { ...n, dependencies: updatedDeps };
         }
-      }
-      return node;
-    });
+        return n;
+      });
 
-    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-    toast.success('Dependency removed');
+      setTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+      toast.success('Dependency removed');
+    } catch (error) {
+      console.error('Error removing dependency:', error);
+      toast.error('Failed to remove dependency');
+    }
   };
 
-  const updateNode = () => {
-    if (!tree || !selectedNode || !nodeTitle.trim()) {
+  const updateNode = async () => {
+    if (!tree || !selectedNode || !nodeTitle.trim() || !user) {
       toast.error('Please enter a node title');
       return;
     }
 
-    const updatedNodes = tree.nodes.map((node) =>
-      node.id === selectedNode
-        ? { ...node, title: nodeTitle, description: nodeDescription }
-        : node
-    );
+    try {
+      const { error } = await supabase
+        .from('skill_nodes')
+        .update({
+          title: nodeTitle,
+          description: nodeDescription || null,
+        })
+        .eq('id', selectedNode)
+        .eq('user_id', user.id);
 
-    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-    setIsEditDialogOpen(false);
-    setNodeTitle('');
-    setNodeDescription('');
-    toast.success('Node updated!');
+      if (error) throw error;
+
+      const updatedNodes = tree.nodes.map((node) =>
+        node.id === selectedNode
+          ? { ...node, title: nodeTitle, description: nodeDescription }
+          : node
+      );
+
+      setTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+      setIsEditDialogOpen(false);
+      setNodeTitle('');
+      setNodeDescription('');
+      toast.success('Node updated!');
+    } catch (error) {
+      console.error('Error updating node:', error);
+      toast.error('Failed to update node');
+    }
   };
 
   const handleNodeClick = (nodeId: string) => {
@@ -180,7 +336,6 @@ const SkillTreeEditor = () => {
 
     if (isEditMode) {
       if (connectingFrom) {
-        // Don't handle here, let handleNodeMouseUp handle it
         return;
       } else {
         setSelectedNode(nodeId);
@@ -191,96 +346,169 @@ const SkillTreeEditor = () => {
       if (!node) return;
 
       if (canCompleteNode(node, tree.nodes, tree.startingNodeId)) {
-        const updatedNodes = tree.nodes.map((n) =>
-          n.id === nodeId ? { ...n, completed: !n.completed } : n
-        );
-        saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-        toast.success(node.completed ? 'Node marked incomplete' : 'Node completed!');
+        toggleNodeCompletion(nodeId, !node.completed);
       } else if (node.completed) {
-        const updatedNodes = tree.nodes.map((n) =>
-          n.id === nodeId ? { ...n, completed: false } : n
-        );
-        saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-        toast.success('Node marked incomplete');
+        toggleNodeCompletion(nodeId, false);
       }
+    }
+  };
+
+  const toggleNodeCompletion = async (nodeId: string, completed: boolean) => {
+    if (!tree || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('skill_nodes')
+        .update({ is_completed: completed })
+        .eq('id', nodeId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const updatedNodes = tree.nodes.map((n) =>
+        n.id === nodeId ? { ...n, completed } : n
+      );
+      setTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+      toast.success(completed ? 'Node completed!' : 'Node marked incomplete');
+    } catch (error) {
+      console.error('Error toggling completion:', error);
+      toast.error('Failed to update node');
     }
   };
 
   const handleNodeMouseUp = (nodeId: string) => {
     if (!tree || !isEditMode) return;
     
-    // Handle connection completion
     if (connectingFrom && connectingFrom !== nodeId) {
       setConnectingTo(nodeId);
     }
   };
 
-  const createConnection = (isRecommended: boolean) => {
-    if (!tree || !connectingFrom || !connectingTo) return;
+  const createConnection = async (isRecommended: boolean) => {
+    if (!tree || !connectingFrom || !connectingTo || !user) return;
     
     if (connectingFrom === connectingTo) {
       toast.error('Cannot connect a node to itself');
       return;
     }
 
-    const updatedNodes = tree.nodes.map((node) => {
-      if (node.id === connectingTo) {
-        if (isRecommended) {
-          const recommendedDeps = node.recommendedDependencies || [];
-          if (!recommendedDeps.includes(connectingFrom)) {
-            return { 
-              ...node, 
-              recommendedDependencies: [...recommendedDeps, connectingFrom] 
-            };
-          }
-        } else {
-          if (!node.dependencies.includes(connectingFrom)) {
-            return { 
-              ...node, 
-              dependencies: [...node.dependencies, connectingFrom] 
-            };
-          }
-        }
-      }
-      return node;
-    });
+    const targetNode = tree.nodes.find((n) => n.id === connectingTo);
+    if (!targetNode) return;
 
-    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-    toast.success(`${isRecommended ? 'Recommended' : 'Required'} dependency added!`);
+    const updatedDeps = isRecommended
+      ? [...(targetNode.recommendedDependencies || []), connectingFrom]
+      : [...targetNode.dependencies, connectingFrom];
+
+    try {
+      const { error } = await supabase
+        .from('skill_nodes')
+        .update(isRecommended
+          ? { recommended_dependencies: updatedDeps }
+          : { required_dependencies: updatedDeps }
+        )
+        .eq('id', connectingTo)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const updatedNodes = tree.nodes.map((node) => {
+        if (node.id === connectingTo) {
+          return isRecommended
+            ? { ...node, recommendedDependencies: updatedDeps }
+            : { ...node, dependencies: updatedDeps };
+        }
+        return node;
+      });
+
+      setTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+      toast.success(`${isRecommended ? 'Recommended' : 'Required'} dependency added!`);
+    } catch (error) {
+      console.error('Error creating connection:', error);
+      toast.error('Failed to create connection');
+    }
+
     setConnectingFrom(null);
     setConnectingTo(null);
     setConnectionDragPos(null);
   };
 
-  const deleteNode = () => {
-    if (!tree || !selectedNode) return;
+  const deleteNode = async () => {
+    if (!tree || !selectedNode || !user) return;
 
-    const updatedNodes = tree.nodes.filter((n) => n.id !== selectedNode);
-    const cleanedNodes = updatedNodes.map((node) => ({
-      ...node,
-      dependencies: node.dependencies.filter((dep) => dep !== selectedNode),
-      recommendedDependencies: (node.recommendedDependencies || []).filter((dep) => dep !== selectedNode),
-    }));
+    try {
+      // Delete from database
+      const { error } = await supabase
+        .from('skill_nodes')
+        .delete()
+        .eq('id', selectedNode)
+        .eq('user_id', user.id);
 
-    saveTree({
-      ...tree,
-      nodes: cleanedNodes,
-      startingNodeId: tree.startingNodeId === selectedNode ? null : tree.startingNodeId,
-      updatedAt: new Date().toISOString(),
-    });
-    setSelectedNode(null);
-    toast.success('Node deleted');
+      if (error) throw error;
+
+      const updatedNodes = tree.nodes.filter((n) => n.id !== selectedNode);
+      const cleanedNodes = updatedNodes.map((node) => ({
+        ...node,
+        dependencies: node.dependencies.filter((dep) => dep !== selectedNode),
+        recommendedDependencies: (node.recommendedDependencies || []).filter((dep) => dep !== selectedNode),
+      }));
+
+      // Update dependencies in all affected nodes
+      for (const node of cleanedNodes) {
+        await supabase
+          .from('skill_nodes')
+          .update({
+            required_dependencies: node.dependencies,
+            recommended_dependencies: node.recommendedDependencies || [],
+          })
+          .eq('id', node.id)
+          .eq('user_id', user.id);
+      }
+
+      const newStartingNodeId = tree.startingNodeId === selectedNode ? null : tree.startingNodeId;
+      
+      if (tree.startingNodeId === selectedNode) {
+        await supabase
+          .from('skill_trees')
+          .update({ starting_node_id: null })
+          .eq('id', tree.id);
+      }
+
+      setTree({
+        ...tree,
+        nodes: cleanedNodes,
+        startingNodeId: newStartingNodeId,
+        updatedAt: new Date().toISOString(),
+      });
+      setSelectedNode(null);
+      toast.success('Node deleted');
+    } catch (error) {
+      console.error('Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
   };
 
-  const setAsStartingNode = () => {
-    if (!tree || !selectedNode) return;
+  const setAsStartingNode = async () => {
+    if (!tree || !selectedNode || !user) return;
 
-    saveTree({
-      ...tree,
-      startingNodeId: selectedNode,
-      updatedAt: new Date().toISOString(),
-    });
-    toast.success('Starting node updated!');
+    try {
+      const { error } = await supabase
+        .from('skill_trees')
+        .update({ starting_node_id: selectedNode })
+        .eq('id', tree.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setTree({
+        ...tree,
+        startingNodeId: selectedNode,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success('Starting node updated!');
+    } catch (error) {
+      console.error('Error setting starting node:', error);
+      toast.error('Failed to update starting node');
+    }
   };
 
   const handlePositionChange = (nodeId: string, x: number, y: number) => {
@@ -300,28 +528,33 @@ const SkillTreeEditor = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // Update connection drag position
     if (connectingFrom) {
       setConnectionDragPos({ x, y });
     }
     
-    // Move the dragging node
     if (draggingNodeId) {
       setIsDragging(true);
       handlePositionChange(draggingNodeId, Math.max(0, x - dragOffset.x), Math.max(0, y - dragOffset.y));
     }
   };
 
-  const handleCanvasMouseUp = () => {
-    if (!tree) return;
+  const handleCanvasMouseUp = async () => {
+    if (!tree || !user) return;
     
     if (draggingNodeId) {
-      saveTree({ ...tree, updatedAt: new Date().toISOString() });
+      // Save position to database
+      const node = tree.nodes.find((n) => n.id === draggingNodeId);
+      if (node) {
+        await supabase
+          .from('skill_nodes')
+          .update({ x: node.x, y: node.y })
+          .eq('id', draggingNodeId)
+          .eq('user_id', user.id);
+      }
       setDraggingNodeId(null);
       setTimeout(() => setIsDragging(false), 100);
     }
     
-    // Cancel connection drag if released on canvas (delay to allow node mouseup to fire first)
     if (connectingFrom && !connectingTo) {
       setTimeout(() => {
         if (connectingFrom && !connectingTo) {
@@ -342,16 +575,23 @@ const SkillTreeEditor = () => {
     setDragOffset({ x: offsetX, y: offsetY });
   };
 
-  const handleNodeDragEnd = () => {
-    if (tree && draggingNodeId) {
-      saveTree({ ...tree, updatedAt: new Date().toISOString() });
+  const handleNodeDragEnd = async () => {
+    if (tree && draggingNodeId && user) {
+      const node = tree.nodes.find((n) => n.id === draggingNodeId);
+      if (node) {
+        await supabase
+          .from('skill_nodes')
+          .update({ x: node.x, y: node.y })
+          .eq('id', draggingNodeId)
+          .eq('user_id', user.id);
+      }
     }
     setDraggingNodeId(null);
     setTimeout(() => setIsDragging(false), 100);
   };
 
-  const autoBalanceNodes = () => {
-    if (!tree || tree.nodes.length === 0) return;
+  const autoBalanceNodes = async () => {
+    if (!tree || tree.nodes.length === 0 || !user) return;
 
     const padding = 200;
     const columns = Math.ceil(Math.sqrt(tree.nodes.length));
@@ -367,9 +607,30 @@ const SkillTreeEditor = () => {
       };
     });
 
-    saveTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
-    toast.success('Nodes balanced!');
+    try {
+      for (const node of updatedNodes) {
+        await supabase
+          .from('skill_nodes')
+          .update({ x: node.x, y: node.y })
+          .eq('id', node.id)
+          .eq('user_id', user.id);
+      }
+
+      setTree({ ...tree, nodes: updatedNodes, updatedAt: new Date().toISOString() });
+      toast.success('Nodes balanced!');
+    } catch (error) {
+      console.error('Error balancing nodes:', error);
+      toast.error('Failed to balance nodes');
+    }
   };
+
+  if (loading || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   if (!tree) {
     return (
