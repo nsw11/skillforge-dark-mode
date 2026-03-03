@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, LogOut } from 'lucide-react';
+import { Plus, LogOut, Upload } from 'lucide-react';
 import { SkillTree } from '@/types/skillTree';
 import { SkillTreeCard } from '@/components/SkillTreeCard';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +25,7 @@ const Home = () => {
   const [newTreeName, setNewTreeName] = useState('');
   const [newTreeDescription, setNewTreeDescription] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
 
@@ -159,6 +160,150 @@ const Home = () => {
     navigate('/auth');
   };
 
+  const importFromLocalStorage = async () => {
+    if (!user) return;
+
+    setIsImporting(true);
+    try {
+      const foundTrees: Array<{ name: string; description?: string; startingNodeId?: string | null; nodes: Array<{ id: string; title: string; description?: string; x: number; y: number; dependencies?: string[]; recommendedDependencies?: string[]; completed?: boolean }> }> = [];
+
+      // Scan all localStorage keys
+      const keysToCheck = ['skillTrees', 'skill-trees', 'skill_trees', 'trees'];
+      const checkedKeys = new Set<string>();
+
+      // Check known keys first
+      for (const key of keysToCheck) {
+        checkedKeys.add(key);
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          for (const item of items) {
+            if (item && typeof item === 'object' && item.name && Array.isArray(item.nodes)) {
+              foundTrees.push(item);
+            }
+          }
+        } catch { /* skip invalid JSON */ }
+      }
+
+      // Scan all other keys for skill tree shaped data
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || checkedKeys.has(key)) continue;
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          for (const item of items) {
+            if (item && typeof item === 'object' && item.name && Array.isArray(item.nodes) && item.nodes.length > 0 && item.nodes[0].title) {
+              foundTrees.push(item);
+            }
+          }
+        } catch { /* skip */ }
+      }
+
+      if (foundTrees.length === 0) {
+        toast.info('No local skill trees found in browser storage');
+        return;
+      }
+
+      let importedCount = 0;
+
+      for (const tree of foundTrees) {
+        try {
+          // Insert the tree
+          const { data: newTree, error: treeError } = await supabase
+            .from('skill_trees')
+            .insert({
+              name: tree.name,
+              description: tree.description || null,
+              user_id: user.id,
+            })
+            .select()
+            .single();
+
+          if (treeError || !newTree) throw treeError;
+
+          // Build ID mapping and insert nodes
+          const idMap = new Map<string, string>();
+
+          if (tree.nodes.length > 0) {
+            // First pass: insert nodes without dependencies to get new IDs
+            for (const node of tree.nodes) {
+              const { data: newNode, error: nodeError } = await supabase
+                .from('skill_nodes')
+                .insert({
+                  tree_id: newTree.id,
+                  user_id: user.id,
+                  title: node.title,
+                  description: node.description || null,
+                  x: node.x || 0,
+                  y: node.y || 0,
+                  is_completed: node.completed || false,
+                  required_dependencies: [],
+                  recommended_dependencies: [],
+                })
+                .select()
+                .single();
+
+              if (nodeError || !newNode) throw nodeError;
+              idMap.set(node.id, newNode.id);
+            }
+
+            // Second pass: update dependencies with remapped IDs
+            for (const node of tree.nodes) {
+              const newNodeId = idMap.get(node.id);
+              if (!newNodeId) continue;
+
+              const remappedDeps = (node.dependencies || [])
+                .map((d: string) => idMap.get(d))
+                .filter(Boolean) as string[];
+              const remappedRecDeps = (node.recommendedDependencies || [])
+                .map((d: string) => idMap.get(d))
+                .filter(Boolean) as string[];
+
+              if (remappedDeps.length > 0 || remappedRecDeps.length > 0) {
+                await supabase
+                  .from('skill_nodes')
+                  .update({
+                    required_dependencies: remappedDeps,
+                    recommended_dependencies: remappedRecDeps,
+                  })
+                  .eq('id', newNodeId);
+              }
+            }
+
+            // Update starting node ID
+            if (tree.startingNodeId && idMap.has(tree.startingNodeId)) {
+              await supabase
+                .from('skill_trees')
+                .update({ starting_node_id: idMap.get(tree.startingNodeId) })
+                .eq('id', newTree.id);
+            }
+          }
+
+          importedCount++;
+        } catch (error) {
+          console.error('Error importing tree:', tree.name, error);
+        }
+      }
+
+      if (importedCount > 0) {
+        toast.success(`Imported ${importedCount} skill tree${importedCount > 1 ? 's' : ''} from local storage`);
+        await loadTrees();
+      } else {
+        toast.error('Failed to import any skill trees');
+      }
+    } catch (error) {
+      console.error('Error during import:', error);
+      toast.error('Failed to import from local storage');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -187,6 +332,10 @@ const Home = () => {
             <Button onClick={() => setIsDialogOpen(true)} size="lg">
               <Plus className="h-5 w-5 mr-2" />
               New Skill Tree
+            </Button>
+            <Button variant="secondary" size="lg" onClick={importFromLocalStorage} disabled={isImporting}>
+              <Upload className="h-5 w-5 mr-2" />
+              {isImporting ? 'Importing...' : 'Import from Local Storage'}
             </Button>
             <Button variant="outline" size="lg" onClick={handleSignOut}>
               <LogOut className="h-5 w-5 mr-2" />
